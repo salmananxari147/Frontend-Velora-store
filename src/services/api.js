@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://salmanansari-velora-store.vercel.app/api';
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: apiBaseUrl.replace(/\/+$/, ''),
 });
 
 api.interceptors.request.use((config) => {
