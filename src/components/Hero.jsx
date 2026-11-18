@@ -3,6 +3,19 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { money } from '../utils/format';
 
+const EASE = [0.22, 1, 0.36, 1];
+
+// text block: soft staggered fade-up (one gentle motion, no double animation)
+const group = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
+  exit: { opacity: 0, transition: { duration: 0.18 } },
+};
+const item = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE } },
+};
+
 function blurb(text) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= 140) return clean;
@@ -12,6 +25,7 @@ function blurb(text) {
 export default function Hero({ products }) {
   const reduce = useReducedMotion();
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const stageRef = useRef(null);
   const drag = useRef(null);
@@ -23,11 +37,12 @@ export default function Hero({ products }) {
     if (index >= count) setIndex(0);
   }, [count, index]);
 
+  // autoplay: slower, and stops while the user is hovering the hero
   useEffect(() => {
-    if (reduce || count < 2) return undefined;
-    const timer = setInterval(() => setIndex((c) => (c + 1) % count), 4500);
+    if (reduce || paused || count < 2) return undefined;
+    const timer = setInterval(() => setIndex((c) => (c + 1) % count), 6000);
     return () => clearInterval(timer);
-  }, [count, reduce]);
+  }, [count, reduce, paused]);
 
   const go = (step) => {
     if (count < 2) return;
@@ -39,7 +54,7 @@ export default function Hero({ products }) {
     const rect = stageRef.current.getBoundingClientRect();
     const px = (event.clientX - rect.left) / rect.width - 0.5;
     const py = (event.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ x: py * -8, y: px * 12 });
+    setTilt({ x: py * -5, y: px * 7 });
   };
 
   const accent = product?.accentColor || '#A56B45';
@@ -48,7 +63,11 @@ export default function Hero({ products }) {
     <section
       className="hero"
       style={{ '--accent': accent }}
-      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => {
+        setPaused(false);
+        setTilt({ x: 0, y: 0 });
+      }}
     >
       <div className="studio">
         {/* ---------- LEFT : TEXT ---------- */}
@@ -57,29 +76,36 @@ export default function Hero({ products }) {
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={product?._id || 'empty'}
-                initial={reduce ? false : { opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduce ? undefined : { opacity: 0, y: -10 }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="studio-copy-body"
+                variants={group}
+                initial={reduce ? false : 'hidden'}
+                animate="show"
+                exit={reduce ? undefined : 'exit'}
               >
                 {product ? (
                   <>
-                    <p className="eyebrow">{product.category?.name || 'VELORA'}</p>
-                    <h1>{product.name}</h1>
-                    <p className="hero-price">{money(product.price)}</p>
-                    <p className="lede">{blurb(product.description)}</p>
+                    <motion.p variants={item} className="eyebrow">
+                      {product.category?.name || 'VELORA'}
+                    </motion.p>
+                    <motion.h1 variants={item}>{product.name}</motion.h1>
+                    <motion.p variants={item} className="hero-price">
+                      {money(product.price)}
+                    </motion.p>
+                    <motion.p variants={item} className="lede">
+                      {blurb(product.description)}
+                    </motion.p>
                   </>
                 ) : (
                   <>
-                    <p className="eyebrow">VELORA</p>
-                    <h1>Built to move.</h1>
-                    <p className="lede">
+                    <motion.p variants={item} className="eyebrow">VELORA</motion.p>
+                    <motion.h1 variants={item}>Built to move.</motion.h1>
+                    <motion.p variants={item} className="lede">
                       Premium men&apos;s footwear designed for everyday movement.
-                    </p>
+                    </motion.p>
                   </>
                 )}
 
-                <div className="hero-cta">
+                <motion.div variants={item} className="hero-cta">
                   <Link
                     to={product ? `/product/${product.slug}` : '/shop'}
                     className="btn btn-orange"
@@ -89,10 +115,10 @@ export default function Hero({ products }) {
                   <Link to="/shop" className="btn btn-line">
                     All footwear
                   </Link>
-                </div>
+                </motion.div>
 
                 {product?.sizes?.length > 0 && (
-                  <div className="studio-sizes">
+                  <motion.div variants={item} className="studio-sizes">
                     <p>Sizes</p>
                     <div>
                       {product.sizes.slice(0, 8).map((size) => (
@@ -101,7 +127,7 @@ export default function Hero({ products }) {
                         </Link>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </motion.div>
             </AnimatePresence>
@@ -129,17 +155,17 @@ export default function Hero({ products }) {
             <motion.div
               className="studio-plate"
               animate={{ rotateX: tilt.x, rotateY: tilt.y }}
-              transition={{ type: 'spring', stiffness: 180, damping: 18, mass: 0.6 }}
+              transition={{ type: 'spring', stiffness: 90, damping: 20, mass: 0.8 }}
             >
               <AnimatePresence initial={false} mode="popLayout">
                 <motion.img
                   key={product._id}
                   src={product.images?.[0]}
                   alt={product.name}
-                  initial={reduce ? false : { opacity: 0, x: '30%' }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={reduce ? undefined : { opacity: 0, x: '-30%' }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  initial={reduce ? false : { opacity: 0, scale: 1.05 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={reduce ? undefined : { opacity: 0 }}
+                  transition={{ duration: 0.7, ease: EASE }}
                   draggable={false}
                 />
               </AnimatePresence>
